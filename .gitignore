@@ -1,0 +1,9 @@
+journal
+mkfs
+validator
+
+*.img
+vsfs.img
+
+*.o
+.DS_store
