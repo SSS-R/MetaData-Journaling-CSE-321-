@@ -18,7 +18,7 @@ void init_journal(int fd){
     }
     //if the number doesnt match, then initializing it
     if (jh.magic != JOURNAL_MAGIC){
-        printf("initializing new journal header... ... ...\n")
+        printf("initializing new journal header... ... ...\n");
         jh.magic = JOURNAL_MAGIC;
         jh.nbytes_used = sizeof(struct journal_header); //empty journal means nbytes used == size of journal header
 
@@ -35,9 +35,9 @@ void journal_append(int fd, unit16_t type, unit32_t block_no, const void *data){
     
     pread(fd, &jh, sizeof(jh), journal_start);
 
-    unint16_t rec_size = (type == REC_DATA)? sizeof(struct data_record): sizeof(struct commit_record);
+    unit16_t rec_size = (type == REC_DATA)? sizeof(struct data_record): sizeof(struct commit_record);
 
-    if (jh.nbytes_used +rec_size > JOURNAL_BLOCK*BLOCK_SIZE){
+    if (jh.nbytes_used +rec_size > JOURNAL_BLOCKS*BLOCK_SIZE){
         fprintf(stderr, "journal full, please run 'install' first\n");
         exit(1);
     }
@@ -109,13 +109,6 @@ void create_file(int fd, const char *name) {
     journal_append(fd, REC_COMMIT, 0, NULL);
 
     printf("File '%s' created in journal (Inum: %d). Run 'install' to apply.\n", name, inum);
-}
-
-// Member 2 Functions (FS Logic)
-void create_file(int fd, const char *name){
-    //TODO
-    (void)fd; (void)name;
-    printf("Create command called for: %s\n", name);
 }
 // Member 3 Functions (Recovery/Install)
 void install_journal(int fd){
