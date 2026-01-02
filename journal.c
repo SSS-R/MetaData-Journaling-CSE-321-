@@ -61,6 +61,56 @@ void journal_append(int fd, unit16_t type, unit32_t block_no, const void *data){
     pwrite(fd, &jh, sizeof(jh), journal_start);
 }
 
+void create_file(int fd, const char *name) {
+    // Read Superblock to get offsets
+    struct superblock sb;
+    pread(fd, &sb, sizeof(sb), 0); [cite: 100]
+
+    // Read Inode Bitmap into MEMORY
+    uint8_t inode_bmap[BLOCK_SIZE];
+    pread(fd, inode_bmap, BLOCK_SIZE, (off_t)sb.inode_bitmap * BLOCK_SIZE);
+
+    // Find free inode 
+    int inum = -1;
+    for (uint32_t i = 0; i < sb.inode_count; i++) { 
+        if (!(inode_bmap[i / 8] & (1 << (i % 8)))) {
+            inum = i;
+            inode_bmap[i / 8] |= (1 << (i % 8)); // Update the memory buffer
+            break;
+        }
+    }
+    if (inum == -1) { printf("No free inodes\n"); return; }
+
+    // Read the Root Directory Block into MEMORY
+    uint8_t dir_block[BLOCK_SIZE];
+    // In this FS, the root directory inode is 0 and its data is at sb.data_start
+    pread(fd, dir_block, BLOCK_SIZE, (off_t)sb.data_start * BLOCK_SIZE);
+
+    // Find a free slot in the directory
+    struct dirent *entries = (struct dirent *)dir_block;
+    int slot_found = 0;
+    for (uint32_t i = 0; i < BLOCK_SIZE / sizeof(struct dirent); i++) {
+        if (entries[i].inode == 0) { // inode 0 in a dirent means it's free
+            entries[i].inode = inum;
+            strncpy(entries[i].name, name, 27);
+            entries[i].name[27] = '\0';
+            slot_found = 1;
+            break;
+        }
+    }
+    if (!slot_found) { printf("Directory full\n"); return; }
+
+    // LOG TO JOURNAL
+    // Log the updated Inode Bitmap block
+    journal_append(fd, REC_DATA, sb.inode_bitmap, inode_bmap);
+    // Log the updated Directory block
+    journal_append(fd, REC_DATA, sb.data_start, dir_block);
+    // Log the COMMIT record
+    journal_append(fd, REC_COMMIT, 0, NULL);
+
+    printf("File '%s' created in journal (Inum: %d). Run 'install' to apply.\n", name, inum);
+}
+
 // Member 2 Functions (FS Logic)
 void create_file(int fd, const char *name){
     //TODO
@@ -85,7 +135,7 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(argv[1], "create") == 0 && argc == 3) {
         init_journal(fd);          //it ensure header exists
-        create_file(fd, argv[2]); // 
+        create_file(fd, argv[2]);
     } else if (strcmp(argv[1], "install") == 0) {
         install_journal(fd); 
     } else {
