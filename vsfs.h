@@ -1,5 +1,6 @@
 #ifndef VSFS_H
 #define VSFS_H
+#define NAME_LEN 28
 
 #include <stdint.h>
 
